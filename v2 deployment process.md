@@ -1,3 +1,213 @@
+# 🛡️ SOC Home Lab on AWS: Automated Deployment
+
+This repository provides a robust and automated solution for deploying a Security Operations Center (SOC) home lab environment directly within your Amazon Web Services (AWS) account. Leveraging Terraform for Infrastructure as Code (IaC) and a Python automation script, this setup allows security enthusiasts, students, and professionals to build and experiment with blue team, red team, forensics, and IT infrastructure components in an isolated cloud environment.
+
+Whether you're looking to practice threat hunting, incident response, penetration testing, or simply understand SOC operations, this lab provides a configurable foundation.
+
+## ✨ Features
+
+* **Modular Deployment:** Deploy core network infrastructure and individual security teams (Blue, Red, Forensics, IT Infrastructure) independently or as needed.
+* **Infrastructure as Code (IaC):** Full environment defined using Terraform, ensuring repeatability, version control, and consistency.
+* **Python Automation:** A user-friendly Python script to simplify Terraform `init`, `apply`, and `destroy` operations, including intelligent commenting/uncommenting of modules in `main.tf`.
+* **Core Network Foundation:** Configures VPC, subnets (public/private), NAT gateway, Internet Gateway, and essential security groups.
+* **Blue Team Capabilities:** Deployment of Security Onion SIEM and a Docker host for tools like TheHive, Cortex, and MISP.
+* **Red Team Capabilities:** Provisioning of Kali Linux, REMnux, and a Docker host for attack frameworks (e.g., Caldera, Covenant).
+* **Forensics Workstation:** Setup for REMnux and Flare VM for malware analysis and digital forensics.
+* **IT Infrastructure Simulation:** Deployment of Windows Server, Windows 10 Workstation(s), and a Docker host to simulate enterprise endpoints and servers, generating realistic logs.
+* **Enhanced Logging:** Placeholder for endpoint logging (Sysmon, Atomic Red Team) to feed logs into the SIEM.
+
+## 🏛️ Architecture Overview
+
+The lab is deployed within a dedicated AWS Virtual Private Cloud (VPC) to ensure network isolation. Resources are strategically placed across public and private subnets, with NAT Gateway providing outbound internet access for private instances.
+
+### Fixed Network Diagram (Text/ASCII Art)
+
+This diagram focuses on the logical network segmentation and key components to remain non-scrollable and easy to read.
+
++-------------------------------------------------+
+| AWS VPC (soc-lab-vpc - 10.10.0.0/16)            |
+|                                                 |
+|  +----------------------+  +------------------+ |
+|  | Public Subnet        |--| Internet Gateway | |
+|  | (10.10.0.0/24)       |  +------------------+ |
+|  |   +-------------+    |                       |
+|  |   | NAT Instance|----| NAT Gateway          |
+|  |   +-------------+    | (Outbound Internet)  |
+|  +----------------------+  +------------------+ |
+|                                                 |
+|  +-------------------------------------------+  |
+|  | Private Subnets (Internal Segments)       |  |
+|  |                                           |  |
+|  |  +-----------------------+                |  |
+|  |  | Blue Team (10.10.1.0/24) |              |  |
+|  |  |   - Security Onion      |              |  |
+|  |  |   - Docker Host         |              |  |
+|  |  +----------^--------------+              |  |
+|  |             |                              |  |
+|  |  +----------V--------------+              |  |
+|  |  | Red Team (10.10.2.0/24) |              |  |
+|  |  |   - Kali Linux          |              |  |
+|  |  |   - Docker Host         |              |  |
+|  |  +----------^--------------+              |  |
+|  |             |                              |  |
+|  |  +----------V--------------+              |  |
+|  |  | IT Infra (10.10.3.0/24) |              |  |
+|  |  |   - Win Server 2019     |              |  |
+|  |  |   - Win 10 Workstation  |              |  |
+|  |  +----------^--------------+              |  |
+|  |             |                              |  |
+|  |  +----------V--------------+              |  |
+|  |  | Forensics (10.10.4.0/24)|              |  |
+|  |  |   - REMnux              |              |  |
+|  |  |   - Flare VM            |              |  |
+|  |  +-----------------------+                |  |
+|  +-------------------------------------------+  |
++-------------------------------------------------+
+
+
+### Key Components
+
+* **Core Network Module:**
+    * **VPC:** Isolated network space for the lab (`soc-lab-vpc`).
+    * **Public Subnet (`10.10.0.0/24`):** Hosts the NAT instance, providing a secure egress point.
+    * **Private Subnets:** Dedicated, isolated subnets for each team:
+        * **Blue Team (`10.10.1.0/24`):** For defensive tools.
+        * **Red Team (`10.10.2.0/24`):** For offensive tools.
+        * **IT Infrastructure (`10.10.3.0/24`):** Simulates enterprise machines.
+        * **Forensics (`10.10.4.0/24`):** For specialized analysis.
+    * **NAT Instance/Gateway:** Provides outbound internet connectivity for instances in private subnets, enabling updates and external tool downloads without exposing them directly to the internet.
+    * **Internet Gateway (IGW):** Connects the VPC to the public internet.
+    * **Security Groups (SGs):** Fine-grained network access control. Includes rules for SSH/RDP from your public IP, and internal communication between departments.
+
+* **Blue Team Module:**
+    * **Security Onion SIEM:** A powerful open-source platform for network security monitoring, log management (Elasticsearch, Kibana), and threat hunting.
+    * **Docker Host:** An Ubuntu instance running Docker, designed to host web-based security applications like TheHive (security incident response platform), Cortex (observable analysis engine), and MISP (Malware Information Sharing Platform).
+
+* **Red Team Module:**
+    * **Kali Linux:** A leading distribution for penetration testing and ethical hacking, packed with offensive tools.
+    * **REMnux:** A specialized Linux distribution for reverse-engineering and malware analysis.
+    * **Docker Host:** Configured to deploy red team attack frameworks such as Caldera or Covenant, providing command & control capabilities.
+
+* **Forensics Module:**
+    * **REMnux:** A dedicated instance for detailed digital forensics and malware analysis.
+    * **Flare VM:** A Windows-based security distribution from Mandiant for malware analysis, leveraging tools like Ghidra, x64dbg, and other forensic utilities.
+
+* **IT Infrastructure Module:**
+    * **Windows Server 2019:** Simulates a typical enterprise domain controller or application server.
+    * **Windows 10 Workstation(s):** Simulates end-user machines, acting as targets for red team operations and sources for security logs.
+    * **Docker Host:** A general-purpose server, potentially running internal applications or services.
+    * **Logging Agents:** (Placeholder configuration) Designed to install agents like Sysmon (for detailed Windows event logging) and potentially Atomic Red Team (for simulating attack techniques and generating telemetry) to create realistic log data.
+
+### Network Flow and Log Architecture
+
+The core idea is to create a realistic environment where logs are generated, collected, analyzed, and incidents can be managed.
+
+1.  **Log Generation (IT Infrastructure ➡️ Blue Team):**
+    * Endpoints (Windows Server, Windows 10) in the **IT Infrastructure Private Subnet** generate various security logs (e.g., Windows Event Logs, Sysmon events, application logs).
+    * These logs are configured to be securely forwarded (e.g., via Winlogbeat, Filebeat, or syslog) to the **Security Onion SIEM** instance.
+    * Network traffic within the VPC can also be captured via VPC Flow Logs (a native AWS service, not explicitly managed by this Terraform, but highly recommended for network visibility) and potentially ingested by Security Onion.
+
+2.  **Log Ingestion & Analysis (Blue Team):**
+    * The **Security Onion SIEM** (in the Blue Team Private Subnet) acts as the central log aggregator. It ingests the forwarded logs, parses them, enriches them with threat intelligence, and stores them in its Elasticsearch backend.
+    * Security analysts access Security Onion's tools (Kibana, Hunting, Playbook) to perform threat hunting, review alerts, and conduct investigations.
+
+3.  **Threat Intelligence & Incident Response (Blue Team):**
+    * The **Blue Team Docker Host** runs applications that support the blue team workflow:
+        * **MISP:** For ingesting and sharing threat intelligence, enriching logs, and informing detection rules.
+        * **TheHive/Cortex:** For managing security incidents, analyzing observables (IPs, domains, hashes) from alerts, and orchestrating response actions. Communication between Security Onion and TheHive/Cortex can be automated.
+
+4.  **Offensive Operations (Red Team ➡️ IT Infrastructure ➡️ Blue Team):**
+    * Instances in the **Red Team Private Subnet** (Kali, Docker Host) are used to launch simulated attacks against targets within the **IT Infrastructure Private Subnet**.
+    * These attacks generate security events and logs on the target IT Infrastructure machines.
+    * These newly generated logs are then forwarded to the **Security Onion SIEM**, allowing the blue team to detect, investigate, and respond to the simulated attacks.
+
+5.  **Specialized Analysis (Forensics ➡️ Blue Team):**
+    * When a suspicious file or artifact is discovered during blue team analysis, it can be securely transferred to the **Forensics Private Subnet** instances (REMnux, Flare VM) for deeper, isolated analysis (e.g., malware reverse engineering, disk imaging). This prevents contamination of the live lab environment.
+
+6.  **Inter-Department Communication (via Security Groups):**
+    * **IT Infra to Blue Team:** Specific security group rules allow outbound log forwarding traffic from IT Infra machines to the Security Onion SIEM on designated ports (e.g., Logstash port).
+    * **Red Team to IT Infra:** Security group rules allow offensive traffic (e.g., common attack ports like 22, 80, 443, 445) from Red Team IPs/subnets to IT Infra machines, simulating lateral movement and exploitation.
+    * **Blue Team/Red Team/Forensics to Public Internet (via NAT):** Instances in these private subnets can reach the internet (for updates, tool downloads) via the NAT Gateway in the public subnet.
+    * **Your IP to Jump Boxes/Management:** Specific security groups allow SSH/RDP from your defined public IP to management instances (e.g., the NAT Instance, or specific jump boxes) and then potentially internally.
+
+## 🚀 Getting Started
+
+Follow these steps to set up and operate your SOC Home Lab on AWS.
+
+### Prerequisites
+
+Before you begin, ensure you have the following:
+
+1.  **AWS Account:** An active AWS account with sufficient permissions to create EC2 instances, VPCs, subnets, security groups, NAT Gateways, etc. (AdministratorAccess for simplicity during learning, but consider least privilege in production).
+2.  **AWS CLI Configured:** Your AWS CLI should be installed and configured with your AWS Access Key ID, Secret Access Key, and a default region.
+    ```bash
+    aws configure
+    ```
+3.  **Terraform Installed:** Terraform (v1.0.0 or higher recommended) must be installed on your local machine and available in your system's PATH.
+    ```bash
+    terraform --version
+    ```
+4.  **Python 3 Installed:** Python 3.x must be installed.
+    ```bash
+    python --version
+    ```
+5.  **Python Dependencies:** Install the `colorama` library for colored terminal output:
+    ```bash
+    pip install colorama boto3
+    ```
+6.  **SSH Key Pair in AWS:** You need an SSH key pair imported into or created directly in your AWS region (e.g., `ap-south-1`).
+    * **Name it `soc-lab-key` (or adjust `key_pair_name` in `main.py` if different).**
+    * If you don't have one:
+        ```bash
+        ssh-keygen -t rsa -b 4096 -f ~/.ssh/soc-lab-key
+        ```
+        Then, import `~/.ssh/soc-lab-key.pub` via AWS Console (EC2 -> Key Pairs -> Import key pair).
+        * **Important:** Ensure the name you give it in the AWS console exactly matches what you set in the script (e.g., `soc-lab-key`).
+
+### Project Structure (Version 2)
+
+soc-lab-aws-v2/
+├── main.py                     # Python automation script for Terraform operations (V2 with AMI management)
+└── terraform/                  # Root Terraform configuration directory
+├── main.tf                 # Main orchestration file, calls modules (UPDATED for V2 AMI logic)
+├── variables.tf            # Global variable declarations for the root module
+├── outputs.tf              # Global output declarations
+├── versions.tf             # Terraform and provider version constraints
+├── providers.tf            # AWS Provider configuration
+├── locals.tf               # Global local values
+├── terraform.tfvars        # Default variable values (YOUR custom settings go here)
+├── custom_amis.json        # NEW: Stores captured custom AMI IDs (Managed by main.py)
+├── .gitignore              # UPDATED: Add custom_amis.json to ignore list
+└── modules/                # Reusable Terraform modules
+├── core_network/       # VPC, subnets, NAT, IGW, core SGs
+│   ├── main.tf         # (UPDATED for V2 AMI logic - see note below)
+│   ├── variables.tf
+│   ├── outputs.tf
+│   └── versions.tf
+├── blue_team/          # Security Onion, Blue Team Docker Host
+│   ├── main.tf         # (UPDATED for V2 AMI logic)
+│   ├── variables.tf
+│   ├── outputs.tf
+│   └── versions.tf
+├── red_team/           # Kali, REMnux, Red Team Docker Host
+│   ├── main.tf         # (UPDATED for V2 AMI logic)
+│   ├── variables.tf
+│   ├── outputs.tf
+│   └── versions.tf
+├── forensics_team/     # REMnux, Flare VM
+│   ├── main.tf         # (UPDATED for V2 AMI logic)
+│   ├── variables.tf
+│   ├── outputs.tf
+│   └── versions.tf
+└── it_infrastructure/  # Windows Server, Windows 10, IT Infra Docker Host
+├── main.tf         # (UPDATED for V2 AMI logic)
+├── variables.tf
+├── outputs.tf
+└── versions.tf
+
+
+
+
 ### Step-by-Step Deployment Process (Version 2)
 
 This workflow is divided into two main phases: a one-time initial setup to create your custom AMIs, and then the rapid, repeatable deployments.
