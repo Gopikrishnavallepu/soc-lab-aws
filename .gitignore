@@ -1,0 +1,7 @@
+# Ignore Terraform plugin and local config folders
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.log
+*.exe
+*.zip
