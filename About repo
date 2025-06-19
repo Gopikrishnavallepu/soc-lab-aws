@@ -1,0 +1,46 @@
+# SOC Lab Automation with Terraform and Python 🛡️☁️
+
+This project automates the provisioning of a complete SOC (Security Operations Center) environment in AWS using Terraform and Python.
+
+## 🚀 Key Features
+
+- Modular deployment of departments:
+  - Blue Team (Wazuh, Security Onion, Zeek, Suricata)
+  - Red Team (Kali Linux, Metasploit, Atomic Red Team)
+  - Forensics (TheHive, Cortex, MISP, Tsurugi)
+  - IT Infrastructure (Windows AD, clients)
+- VPC segmentation and traffic mirroring
+- CloudWatch log integration
+- Fully controlled via `deploy.py`
+
+## 🌱 Branch Strategy
+
+| Branch        | Purpose                        |
+|---------------|--------------------------------|
+| `main`        | Stable production code         |
+| `v1`          | Initial working version         |
+| `v2`          | Updated version with improvements |
+| `dev`         | Development and testing         |
+| `feature/*`   | Experimental features and scripts |
+
+## 📦 How to Use
+
+1. Clone repo: `git clone https://github.com/yourusername/soc-lab-aws.git`
+2. Navigate: `cd soc-lab-aws`
+3. Run Python deployment script: `python3 deploy.py`
+4. Choose the department to deploy (Blue, Red, Infra, etc.)
+
+## ✅ Contribution Guidelines
+
+- Use branches named: `feature/<name>`
+- Commit changes with clear messages
+- Create a Pull Request for review before merging
+
+## 🧩 Requirements
+
+- Terraform
+- Python 3
+- AWS CLI
+- AWS credentials configured (`aws configure`)
+
+---
